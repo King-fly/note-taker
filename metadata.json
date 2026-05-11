@@ -1,0 +1,9 @@
+{
+  "name": "ClassSync - AI Classroom Note Taker",
+  "description": "An MVP for K12 and college students. Features fast voice/ocr note taking, automatic Cornell formatting, and review cards.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
