@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.security import get_current_user
+from app.core.monitoring_deps import monitor_task
 from app.models.note import Note
 
 logger = logging.getLogger(__name__)
@@ -45,27 +46,28 @@ def transcribe_audio(
     current_user: dict = Depends(get_current_user),
 ) -> TranscribeResponse:
     """Transcribe audio using local Whisper model (sync or async via Celery)."""
-    import tempfile
+    with monitor_task("transcribe_audio"):
+        import tempfile
 
-    audio_data = body.audio_b64
-    if audio_data.startswith("data:"):
-        parts = audio_data.split(",", 1)
-        if len(parts) == 2:
-            audio_data = parts[1]
+        audio_data = body.audio_b64
+        if audio_data.startswith("data:"):
+            parts = audio_data.split(",", 1)
+            if len(parts) == 2:
+                audio_data = parts[1]
 
-    try:
-        audio_bytes = base64.b64decode(audio_data)
-    except Exception as exc:
-        logger.error("Invalid base64 audio: %s", exc)
-        raise HTTPException(status_code=400, detail=f"Invalid base64 audio: {exc}")
+        try:
+            audio_bytes = base64.b64decode(audio_data)
+        except Exception as exc:
+            logger.error("Invalid base64 audio: %s", exc)
+            raise HTTPException(status_code=400, detail=f"Invalid base64 audio: {exc}")
 
-    model_size = len(audio_bytes) / (1024 * 1024)
-    logger.info("Audio size: %.2f MB, async_mode: %s", model_size, body.async_mode)
+        model_size = len(audio_bytes) / (1024 * 1024)
+        logger.info("Audio size: %.2f MB, async_mode: %s", model_size, body.async_mode)
 
-    if body.async_mode or model_size > 5:
-        return _transcribe_async(body, audio_data, current_user)
-    else:
-        return _transcribe_sync(body, audio_data)
+        if body.async_mode or model_size > 5:
+            return _transcribe_async(body, audio_data, current_user)
+        else:
+            return _transcribe_sync(body, audio_data)
 
 
 def _transcribe_sync(body: TranscribeRequest, audio_data: str) -> TranscribeResponse:

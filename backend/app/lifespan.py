@@ -26,6 +26,7 @@ def create_application() -> FastAPI:
     # ── Middleware ──────────────────────────────────────────────────
     from fastapi.middleware.cors import CORSMiddleware
     from app.core.config import get_settings
+    from app.core.monitoring_deps import add_monitoring_middleware
 
     s = get_settings()
     app.add_middleware(
@@ -36,11 +37,22 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Add monitoring middleware if enabled
+    if s.METRICS_ENABLED:
+        add_monitoring_middleware(app)
+
     # ── Lifespan ───────────────────────────────────────────────────
     @app.on_event("startup")
     def on_startup():
         setup_logging()
         logger.info("Starting %s v%s", s.PROJECT_NAME, s.VERSION)
+        
+        # Initialize monitoring if enabled
+        if s.METRICS_ENABLED:
+            from app.core.monitoring import setup_monitoring
+            setup_monitoring(s.METRICS_PORT)
+            logger.info("Monitoring enabled on port %d", s.METRICS_PORT)
+        
         init_db()
         logger.info("Database tables initialized")
 
@@ -50,8 +62,10 @@ def create_application() -> FastAPI:
 
     # ── Routes ─────────────────────────────────────────────────────
     from app.api import auth, notes, review, user, health, ocr, transcribe
+    from app.api.health_extended import router as health_extended_router
 
     app.include_router(health.router, prefix=s.API_PREFIX, tags=["health"])
+    app.include_router(health_extended_router, prefix=s.API_PREFIX, tags=["health"])
     app.include_router(auth.router, prefix=s.API_PREFIX, tags=["auth"])
     app.include_router(user.router, prefix=s.API_PREFIX, tags=["user"])
     app.include_router(notes.router, prefix=s.API_PREFIX, tags=["notes"])

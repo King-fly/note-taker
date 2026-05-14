@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
 from app.core.database import get_db
+from app.core.monitoring_deps import monitor_task
 from app.models.note import Note, NoteTemplate, NoteType
 from app.models.user import User
 from app.schemas.models import (
@@ -56,20 +57,21 @@ def create_note(
     db: Session = Depends(get_db),
 ) -> Note:
     """Create a new quick-note (raw capture)."""
-    note = Note(
-        user_id=current_user["user_id"],
-        title=body.title,
-        content=body.content,
-        raw_content=body.raw_content,
-        note_type=body.note_type,
-        subject=body.subject,
-        tags=json.dumps(body.tags) if body.tags else None,
-        confidence_score=body.confidence_score,
-    )
-    db.add(note)
-    db.commit()
-    db.refresh(note)
-    return note
+    with monitor_task("create_note"):
+        note = Note(
+            user_id=current_user["user_id"],
+            title=body.title,
+            content=body.content,
+            raw_content=body.raw_content,
+            note_type=body.note_type,
+            subject=body.subject,
+            tags=json.dumps(body.tags) if body.tags else None,
+            confidence_score=body.confidence_score,
+        )
+        db.add(note)
+        db.commit()
+        db.refresh(note)
+        return note
 
 
 @router.get("/notes", response_model=NoteListResponse, tags=["notes"])
@@ -79,26 +81,27 @@ def list_notes(
     db: Session = Depends(get_db),
 ) -> NoteListResponse:
     """List and search the user's notes with filtering & pagination."""
-    q = db.query(Note).filter(Note.user_id == current_user["user_id"])
+    with monitor_task("list_notes"):
+        q = db.query(Note).filter(Note.user_id == current_user["user_id"])
 
-    if query.search:
-        pattern = f"%{query.search}%"
-        q = q.filter(or_(Note.title.ilike(pattern), Note.content.ilike(pattern)))
-    if query.subject:
-        q = q.filter(Note.subject == query.subject)
-    if query.is_organized is not None:
-        q = q.filter(Note.is_organized == query.is_organized)
-    if query.note_type:
-        q = q.filter(Note.note_type == query.note_type)
+        if query.search:
+            pattern = f"%{query.search}%"
+            q = q.filter(or_(Note.title.ilike(pattern), Note.content.ilike(pattern)))
+        if query.subject:
+            q = q.filter(Note.subject == query.subject)
+        if query.is_organized is not None:
+            q = q.filter(Note.is_organized == query.is_organized)
+        if query.note_type:
+            q = q.filter(Note.note_type == query.note_type)
 
-    total = q.count()
-    items = (
-        q.order_by(Note.created_at.desc())
-        .offset((query.page - 1) * query.page_size)
-        .limit(query.page_size)
-        .all()
-    )
-    return NoteListResponse(total=total, items=[NoteResponse.model_validate(n) for n in items])
+        total = q.count()
+        items = (
+            q.order_by(Note.created_at.desc())
+            .offset((query.page - 1) * query.page_size)
+            .limit(query.page_size)
+            .all()
+        )
+        return NoteListResponse(total=total, items=[NoteResponse.model_validate(n) for n in items])
 
 
 @router.get("/notes/{note_id}", response_model=NoteResponse, tags=["notes"])

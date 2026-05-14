@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10 MB
     UPLOAD_DIR: str = "uploads"
 
+    # ── Monitoring ───────────────────────────────────────────────────
+    METRICS_ENABLED: bool = True
+    METRICS_PORT: int = 9090
+    LOG_LEVEL: str = "INFO"
+
     # ── CORS ─────────────────────────────────────────────────────────
     CORS_ORIGINS: Any = '["http://localhost:3000","http://localhost:5173","http://127.0.0.1:3000","http://127.0.0.1:5173"]'
 

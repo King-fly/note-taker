@@ -4,11 +4,13 @@ Celery task for AI-powered note organization.
 
 import json
 import logging
+import time
 
 from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
+from app.core.monitoring import record_task_completion, record_ai_api_call
 from app.models.note import Note, NoteTemplate
 from app.services.ai_service import generate_text, generate_formula, generate_framework
 
@@ -23,11 +25,14 @@ def organize_note_task(self, note_id: str, template: str) -> dict:
         note_id: Primary key of the note to organize.
         template: Template type (康奈尔/思维导图/理科公式/文科框架).
     """
+    start_time = time.time()
     db: Session = SessionLocal()
     try:
         note = db.query(Note).filter(Note.id == note_id).first()
         if not note or note.is_organized:
             logger.info("Note %s already organized or not found", note_id)
+            duration = time.time() - start_time
+            record_task_completion("organize_note_task", duration, success=True)
             return {"status": "skipped"}
 
         note.organize_status = "processing"
@@ -42,16 +47,25 @@ def organize_note_task(self, note_id: str, template: str) -> dict:
             note.organize_status = "completed"
             note.content = ""
             db.commit()
+            duration = time.time() - start_time
+            record_task_completion("organize_note_task", duration, success=True)
             return {"status": "skipped", "reason": "no_content", "note_id": note_id}
 
         logger.info("Organizing note %s with template %s", note_id, template)
 
+        # Monitor the AI content generation
+        ai_start_time = time.time()
         organized_content = _produce_content(template, content, subject, note)
+        ai_duration = time.time() - ai_start_time
+        record_ai_api_call("local_ai", "note_organization", ai_duration, len(organized_content or ""))
+        
         if not organized_content or not organized_content.strip():
             logger.warning("AI returned empty content for note %s", note_id)
             note.is_organized = False
             note.organize_status = "failed"
             db.commit()
+            duration = time.time() - start_time
+            record_task_completion("organize_note_task", duration, success=False)
             return {"status": "failed", "reason": "empty_ai_response", "note_id": note_id}
 
         note.content = organized_content
@@ -59,10 +73,14 @@ def organize_note_task(self, note_id: str, template: str) -> dict:
         note.organize_status = "completed"
         db.commit()
 
+        duration = time.time() - start_time
+        record_task_completion("organize_note_task", duration, success=True)
         return {"status": "completed", "note_id": note_id}
 
     except Exception as exc:
         logger.exception("Failed to organize note %s: %s", note_id, exc)
+        duration = time.time() - start_time
+        record_task_completion("organize_note_task", duration, success=False)
         try:
             note = db.query(Note).filter(Note.id == note_id).first()
             if note:
