@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: classsync-config
+  namespace: classsync
+data:
+  # Application configuration
+  DATABASE_URL: "postgresql://postgres:classsync-db:5432/note_taker"
+  REDIS_URL: "redis://classsync-redis:6379/0"
+  CELERY_BROKER_URL: "redis://classsync-redis:6379/1"
+  CELERY_RESULT_BACKEND: "redis://classsync-redis:6379/2"
+  LOCAL_AI_BASE_URL: "http://classsync-local-ai:8085/v1"
+  LOCAL_AI_MODEL: "Qwen3.6-35B-A3B-UD-MLX-4bit"
+  ENVIRONMENT: "production"
+  DEBUG: "False"
+  METRICS_ENABLED: "True"
+  METRICS_PORT: "9090"
+  MAX_UPLOAD_SIZE: "10485760"
+  CORS_ORIGINS: '["https://yourdomain.com","https://www.yourdomain.com"]'
+  
+  # Database configuration
+  POSTGRES_DB: "note_taker"
+  POSTGRES_USER: "postgres"
+  
+  # Celery configuration
+  CELERY_WORKER_CONCURRENCY: "4"
+  CELERY_WORKER_PREFETCH_MULTIPLIER: "1"
+  
+  # Application settings
+  ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+  ALGORITHM: "HS256"
+  HASHING_ALGORITHM: "bcrypt"

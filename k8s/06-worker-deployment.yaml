@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: classsync-worker
+  namespace: classsync
+  labels:
+    app: classsync-worker
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: classsync-worker
+  template:
+    metadata:
+      labels:
+        app: classsync-worker
+    spec:
+      containers:
+      - name: worker
+        image: classsync/api:latest
+        command: ["celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: DATABASE_URL
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: REDIS_URL
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: CELERY_BROKER_URL
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: CELERY_RESULT_BACKEND
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: classsync-secrets
+              key: secret-key
+        - name: LOCAL_AI_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: LOCAL_AI_BASE_URL
+        - name: LOCAL_AI_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: LOCAL_AI_MODEL
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: ENVIRONMENT
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: classsync-config
+              key: DEBUG
+        volumeMounts:
+        - name: uploads-volume
+          mountPath: /app/uploads
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "celery inspect ping -d celery@$HOSTNAME || exit 1"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+      volumes:
+      - name: uploads-volume
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: classsync-worker-service
+  namespace: classsync
+  labels:
+    app: classsync-worker
+spec:
+  selector:
+    app: classsync-worker
+  ports:
+    - protocol: TCP
+      port: 5555
+      targetPort: 5555
+  type: ClusterIP

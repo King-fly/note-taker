@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # Main application
+  api:
+    build: .
+    container_name: classsync-api
+    ports:
+      - "8000:8000"
+      - "9090:9090"  # Metrics port
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/note_taker
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=supersecretkeychangeinproduction
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - METRICS_ENABLED=True
+      - METRICS_PORT=9090
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL database
+  db:
+    image: postgres:15-alpine
+    container_name: classsync-db
+    environment:
+      - POSTGRES_DB=note_taker
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and Celery broker
+  redis:
+    image: redis:7-alpine
+    container_name: classsync-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Celery worker
+  worker:
+    build: .
+    container_name: classsync-worker
+    command: celery -A app.core.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/note_taker
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=supersecretkeychangeinproduction
+      - ENVIRONMENT=production
+      - DEBUG=False
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  # Flower for Celery monitoring
+  flower:
+    image: mher/flower:2.0
+    container_name: classsync-flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - FLOWER_PORT=5555
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Nginx as reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: classsync-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
