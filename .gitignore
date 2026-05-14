@@ -1,8 +1,30 @@
-node_modules/
-build/
-dist/
-coverage/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
-.env*
+
+# Environment variables (root level - keep env files in subdirectories)
+.env
+.env.local
+.env.*.local
 !.env.example
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# Backend (backend has its own .gitignore, but add top-level exclusions)
+backend/data/
+backend/uploads/
+backend/*.db
