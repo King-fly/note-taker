@@ -1,6 +1,6 @@
-# Class Notes - AI-Powered Note Taking Application
+# ClassSync - AI-Powered Classroom Note Taker
 
-A comprehensive full-stack note-taking application that combines modern web technologies with AI capabilities to help students and professionals capture, organize, and review their notes efficiently.
+A comprehensive full-stack AI note-taking application designed specifically for students. Capture, organize, and review your class notes with the power of AI.
 
 ## 🚀 Features
 
@@ -45,7 +45,12 @@ A comprehensive full-stack note-taking application that combines modern web tech
 ### AI & ML
 - **Local Whisper** for speech-to-text
 - **Tesseract OCR** for image text recognition
-- **Custom AI models** for note organization
+- **Local MLX Inference Server** for AI processing
+
+### DevOps
+- **Docker** & **Docker Compose** for containerization
+- **Nginx** for reverse proxy and static file serving
+- **Flower** for Celery task monitoring
 
 ## 🏗️ Project Structure
 
@@ -60,6 +65,7 @@ note-taker/
 │   │   ├── api/             # API client and types
 │   │   ├── i18n/            # Internationalization files
 │   │   └── utils/           # Utility functions
+│   ├── nginx.conf           # Frontend Nginx configuration
 │   ├── components.json      # ShadCN configuration
 │   └── package.json         # Dependencies
 ├── backend/                 # FastAPI backend
@@ -72,6 +78,8 @@ note-taker/
 │   │   └── main.py          # Application entry point
 │   ├── requirements.txt     # Python dependencies
 │   └── alembic/             # Database migrations
+├── nginx.conf               # Reverse proxy configuration
+├── docker-compose.yml       # Docker Compose configuration
 ├── .env.example            # Environment variables template
 └── README.md               # Project documentation
 ```
@@ -80,92 +88,85 @@ note-taker/
 
 ### Prerequisites
 
-**Frontend:**
-- Node.js >= 20.x
-- npm or yarn
+**For Docker Deployment (Recommended):**
+- Docker Engine >= 24.x
+- Docker Compose >= 2.x
 
-**Backend:**
+**For Local Development:**
+- Node.js >= 20.x
 - Python >= 3.12
 - PostgreSQL database
 - Redis server (for Celery)
 - FFmpeg (for audio processing)
+- Tesseract OCR
 
-### Installation
+### 🐳 Docker Deployment (Recommended)
 
-#### 1. Clone the Repository
+**1. Clone the Repository**
 
 ```bash
 git clone <repository-url>
 cd note-taker
 ```
 
-#### 2. Backend Setup
+**2. Configure Environment Variables**
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+```bash
+cp .env.example .env
+# Edit .env with your configuration if needed
+```
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
+**3. Build and Run**
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+# Build and start all services
+docker-compose up --build -d
+```
 
-4. Set up environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+**4. Access the Application**
 
-5. Set up the database:
-   ```bash
-   # Make sure PostgreSQL is running
-   alembic upgrade head
-   ```
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost |
+| API Documentation | http://localhost/docs |
+| Flower Monitoring | http://localhost:5555 |
 
-6. Run the backend server:
-   ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-   ```
+**5. Stop Services**
 
-#### 3. Frontend Setup
+```bash
+docker-compose down
+```
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+### 🛠️ Local Development
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+#### Backend Setup
 
-3. Set up environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your backend URL
-   ```
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your database configuration
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-4. Run the frontend:
-   ```bash
-   npm run dev
-   ```
+#### Frontend Setup
 
-#### 4. Background Workers (Optional)
+```bash
+cd frontend
+npm install
+cp .env.example .env
+# Set VITE_API_BASE_URL=http://localhost:8000/api/v1
+npm run dev
+```
 
-For AI processing and other background tasks:
+#### Background Workers
 
-1. Make sure Redis is running
-2. From the backend directory, start Celery worker:
-   ```bash
-   celery -A app.core.celery_app worker --loglevel=info
-   ```
+```bash
+cd backend
+celery -A app.core.celery_app worker --loglevel=info
+```
 
 ## 🛠️ Configuration
 
@@ -182,19 +183,17 @@ REDIS_URL=redis://localhost:6379/0
 # Security
 SECRET_KEY=your-secret-key-here
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
 # AI Services
-LOCAL_AI_URL=http://127.0.0.1:8085/v1
+LOCAL_AI_BASE_URL=http://127.0.0.1:8085/v1
+LOCAL_AI_API_KEY=your-api-key
 LOCAL_AI_MODEL=Qwen3.6-35B-A3B-UD-MLX-4bit
-LOCAL_AI_API_KEY=omlx-yqha5fy1fm9aufeo
 ```
 
 #### Frontend (.env)
 ```bash
-# API Configuration
-VITE_API_BASE_URL=http://localhost:8000
-VITE_WS_BASE_URL=ws://localhost:8000
+VITE_API_BASE_URL=http://localhost/api/v1
 ```
 
 ## 🧪 Running Tests
@@ -211,25 +210,47 @@ cd frontend
 npm run test
 ```
 
-## 🚢 Deployment
+## 🏗️ Docker Services
 
-### Production Build
+### Service Architecture
 
-#### Frontend
-```bash
-cd frontend
-npm run build
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     nginx (port 80)                        │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │   /api/*     │    │   /ws/*      │    │   /*         │  │
+│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘  │
+└─────────┼────────────────────┼────────────────────┼─────────┘
+          ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   classsync-api │  │   classsync-api │  │ classsync-front │
+│   (port 8000)   │  │   (port 8000)   │  │   (port 80)     │
+└────────┬────────┘  └─────────────────┘  └─────────────────┘
+         │
+         ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ classsync-db    │  │ classsync-redis │  │ classsync-worker│
+│  (PostgreSQL)   │  │    (Redis)      │  │   (Celery)      │
+└─────────────────┘  └─────────────────┘  └────────┬────────┘
+                                                   │
+                                                   ▼
+                                          ┌─────────────────┐
+                                          │ classsync-flower│
+                                          │  (port 5555)    │
+                                          └─────────────────┘
 ```
 
-#### Backend
-```bash
-cd backend
-# Use a production WSGI server like Gunicorn
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-```
+### Service List
 
-### Docker Support (Coming Soon)
-Docker configurations will be added for easier deployment.
+| Service | Container Name | Description |
+|---------|---------------|-------------|
+| API | classsync-api | FastAPI backend server |
+| Frontend | classsync-frontend | React frontend |
+| Database | classsync-db | PostgreSQL database |
+| Redis | classsync-redis | Redis cache/broker |
+| Worker | classsync-worker | Celery background worker |
+| Flower | classsync-flower | Celery task monitor |
+| Nginx | classsync-nginx | Reverse proxy |
 
 ## 🤝 Contributing
 
@@ -252,4 +273,4 @@ If you encounter any issues or have questions:
 
 ---
 
-Built with ❤️ for students and professionals who want to enhance their note-taking experience with AI power.
+Built with ❤️ for students who want to enhance their learning experience with AI power.

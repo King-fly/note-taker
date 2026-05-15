@@ -125,7 +125,11 @@ Ensure your local MLX inference server is running at http://127.0.0.1:8085/v1
 pytest tests/ -v
 ```
 
-## Docker Deployment
+## 🐳 Docker Deployment
+
+### Using Docker Compose (Recommended)
+
+From the project root directory:
 
 ```bash
 # Build & start all services
@@ -138,6 +142,14 @@ docker-compose logs -f celery-worker
 # Stop all
 docker-compose down
 ```
+
+### Service URLs
+
+| Service | URL |
+|---------|-----|
+| API | http://localhost/api/v1 |
+| API Docs | http://localhost/docs |
+| Flower | http://localhost:5555 |
 
 ## API Endpoints
 
@@ -246,4 +258,25 @@ sync_logs
 ├── id (PK), user_id (FK)
 ├── action, entity_type, entity_id
 └── timestamp, client_id
+```
+
+## Development Guidelines
+
+### Code Style
+- Follow PEP 8 guidelines
+- Use type hints for all functions
+- Use `async/await` for I/O operations
+
+### Testing
+- Write unit tests for all new features
+- Run tests before pushing changes
+- Maintain >80% test coverage
+
+### Migrations
+```bash
+# Create migration
+alembic revision --autogenerate -m "description"
+
+# Apply migration
+alembic upgrade head
 ```
