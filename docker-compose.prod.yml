@@ -36,7 +36,7 @@ services:
 
   # PostgreSQL database
   db:
-    image: postgres:15-alpine
+    image: postgres:15.18-alpine
     container_name: classsync-db
     environment:
       - POSTGRES_DB=note_taker
@@ -55,7 +55,7 @@ services:
 
   # Redis for caching and Celery broker
   redis:
-    image: redis:7-alpine
+    image: redis:7.4
     container_name: classsync-redis
     ports:
       - "6379:6379"

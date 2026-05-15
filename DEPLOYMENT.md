@@ -23,7 +23,7 @@
 ## Docker 部署
 
 ### Dockerfile 特点
-- 基于 `python:3.12-slim` 轻量镜像
+- 基于 `python:3.12-slim-trixie` 轻量镜像
 - 包含 OCR 和音频处理依赖 (Tesseract, FFmpeg)
 - 使用非 root 用户提升安全性
 - 预装 Whisper 模型支持

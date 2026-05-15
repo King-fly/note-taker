@@ -110,7 +110,7 @@ secrets:
 database:
   enabled: true
   replicaCount: 1
-  image: postgres:15-alpine
+  image: postgres:15.18-alpine
   storage: 10Gi
   resources:
     requests:
@@ -124,7 +124,7 @@ database:
 redis:
   enabled: true
   replicaCount: 1
-  image: redis:7-alpine
+  image: redis:7.4
   storage: 5Gi
   resources:
     requests:

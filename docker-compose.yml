@@ -1,13 +1,10 @@
 version: '3.8'
 
 services:
-  # Main application
+  # Main application API
   api:
     build: .
     container_name: classsync-api
-    ports:
-      - "8000:8000"
-      - "9090:9090"  # Metrics port
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/note_taker
       - REDIS_URL=redis://redis:6379/0
@@ -31,9 +28,18 @@ services:
       retries: 3
       start_period: 60s
 
+  # Frontend
+  frontend:
+    image: nginx:alpine-slim
+    container_name: classsync-frontend
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html
+      - ./frontend/nginx.conf:/etc/nginx/nginx.conf
+    restart: unless-stopped
+
   # PostgreSQL database
   db:
-    image: postgres:15-alpine
+    image: postgres:15.18-alpine
     container_name: classsync-db
     environment:
       - POSTGRES_DB=note_taker
@@ -41,9 +47,6 @@ services:
       - POSTGRES_PASSWORD=password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -53,10 +56,8 @@ services:
 
   # Redis for caching and Celery broker
   redis:
-    image: redis:7-alpine
+    image: redis:7.4
     container_name: classsync-redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -90,8 +91,6 @@ services:
   flower:
     image: mher/flower:2.0
     container_name: classsync-flower
-    ports:
-      - "5555:5555"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/1
       - FLOWER_PORT=5555
@@ -99,19 +98,19 @@ services:
       - redis
     restart: unless-stopped
 
-  # Nginx as reverse proxy (optional)
+  # Nginx as reverse proxy
   nginx:
-    image: nginx:alpine
+    image: nginx:alpine-slim
     container_name: classsync-nginx
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
     depends_on:
       - api
+      - frontend
     restart: unless-stopped
+    command: sh -c "rm -f /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
 
 volumes:
   postgres_data:

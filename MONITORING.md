@@ -93,7 +93,7 @@ LOG_LEVEL=INFO
 
 ### Docker部署示例
 ```dockerfile
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
 
 # 安装依赖
 COPY requirements.txt .
